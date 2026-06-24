@@ -1,0 +1,166 @@
+:root {
+    /* Warna dari Logo */
+    --logo-teal: #6fbab7;
+    --logo-orange: #ffcc99;
+    --logo-blue: #3d7e96;
+    --dark-bg: #121212; /* Untuk sidebar seperti di logo */
+    
+    /* Warna Pendukung dari palet awal */
+    --primary: #a8dadc;
+    --accent: #ffb7b2;
+    --dark-blue: #1d3557;
+    --soft-blue: #f1faee;
+    --white: #ffffff;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    display: flex;
+    background-color: var(--soft-blue);
+    color: var(--dark-blue);
+    height: 100vh;
+}
+
+/* Sidebar Styling - Terinspirasi dari background hitam logo */
+.sidebar {
+    width: 260px;
+    background-color: var(--dark-bg);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+}
+
+.sidebar-logo {
+    width: 100%;
+    margin-bottom: 30px;
+    padding: 10px;
+}
+
+.sidebar-logo img {
+    width: 100%;
+    height: auto;
+}
+
+.nav-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.nav-item {
+    color: #bdc3c7;
+    text-decoration: none;
+    padding: 12px 15px;
+    border-radius: 8px;
+    transition: 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.nav-item:hover, .nav-item.active {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--logo-teal);
+}
+
+/* Main Content Area */
+.main-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 30px;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+/* Cards & Layout */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 20px;
+}
+
+.card {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+}
+
+.welcome-banner {
+    background-color: var(--dark-blue);
+    color: white;
+    padding: 25px;
+    border-radius: 15px;
+    margin-bottom: 25px;
+}
+
+/* Mood Selection */
+.mood-options {
+    display: flex;
+    justify-content: space-around;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.mood-btn {
+    flex: 1;
+    border: none;
+    background: var(--soft-blue);
+    padding: 15px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: 0.3s;
+    text-align: center;
+}
+
+.mood-btn:hover {
+    transform: translateY(-5px);
+    background: var(--logo-orange);
+}
+
+.mood-btn.active {
+    background: var(--logo-teal);
+    color: white;
+}
+
+/* Form & Input */
+textarea {
+    width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 15px;
+    font-family: inherit;
+    resize: none;
+    margin-top: 10px;
+}
+
+.btn-save {
+    background-color: var(--dark-blue);
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 10px;
+    font-weight: bold;
+}
+
+/* Reminder Items */
+.reminder-item {
+    padding: 12px;
+    border-radius: 10px;
+    margin-bottom: 10px;
+    font-size: 0.9rem;
+}
+
+.rem-orange { background-color: var(--logo-orange); color: #555; }
+.rem-teal { background-color: var(--logo-teal); color: white; }
