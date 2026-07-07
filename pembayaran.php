@@ -22,24 +22,29 @@ if ($paket == 'monthly') {
 }
 
 // Logika ketika user menekan tombol "Saya Sudah Transfer"
+// Logika ketika user menekan tombol "Saya Sudah Transfer"
 if (isset($_POST['konfirmasi_bayar'])) {
     $user_id = $_SESSION['user_id'];
-    
-    // QUERY UPDATE: Ubah status user di database menjadi PREMIUM (Simulasi sukses setelah bayar)
-    $stmt = $pdo->prepare("UPDATE users SET is_premium = 1 WHERE id = ?");
-    $stmt->execute([$user_id]);
-    
-    // Perbarui data session aktif agar dashboard langsung mendeteksi status premiumnya
-    $_SESSION['is_premium'] = true;
-    
-    // Alihkan kembali ke dashboard dengan membawa status sukses
-    header("Location: dashboard.php?status=premium_sukses");
+    $username = $_SESSION['username'] ?? 'User'; // Mengambil nama user biar admin tau siapa yang chat
+
+    // Nomor WhatsApp kamu/admin (Ganti angka di bawah dengan nomor WA kamu, wajib pakai kode negara 62)
+    $nomor_wa_admin = "62882008904960";
+
+    // Pesan otomatis yang bakal tertulis di WA user
+    $pesan = "Halo Admin MoodMate, saya sudah melakukan transfer pembayaran paket premium untuk akun Username: *{$username}* (ID: {$user_id}). Berikut saya lampirkan bukti transfernya ya!";
+
+    // Encode pesan agar aman dibaca oleh link URL browser
+    $url_pesan = urlencode($pesan);
+
+    // Alihkan langsung ke WhatsApp Web / Aplikasi WhatsApp
+    header("Location: https://wa.me/{$nomor_wa_admin}?text={$url_pesan}");
     exit;
-}
+} 
 ?>
 
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -50,6 +55,7 @@ if (isset($_POST['konfirmasi_bayar'])) {
             --logo-blue: #3498db;
             --logo-orange: #e67e22;
         }
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: #f4f6f9;
@@ -59,19 +65,22 @@ if (isset($_POST['konfirmasi_bayar'])) {
             height: 100vh;
             margin: 0;
         }
+
         .invoice-card {
             background: white;
             padding: 30px;
             border-radius: 16px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
             max-width: 400px;
             width: 90%;
             text-align: center;
         }
+
         .icon {
             font-size: 3rem;
             margin-bottom: 10px;
         }
+
         .harga-tag {
             font-size: 2rem;
             font-weight: bold;
@@ -82,6 +91,7 @@ if (isset($_POST['konfirmasi_bayar'])) {
             border-radius: 8px;
             display: inline-block;
         }
+
         .instruksi-box {
             background: #f8f9fa;
             border: 1px dashed #ccc;
@@ -91,6 +101,7 @@ if (isset($_POST['konfirmasi_bayar'])) {
             font-size: 0.9rem;
             margin-bottom: 20px;
         }
+
         .btn-confirm {
             background: var(--logo-blue);
             color: white;
@@ -103,9 +114,11 @@ if (isset($_POST['konfirmasi_bayar'])) {
             font-size: 1rem;
             transition: 0.2s;
         }
+
         .btn-confirm:hover {
             background: #2980b9;
         }
+
         .btn-batal {
             display: block;
             margin-top: 15px;
@@ -115,31 +128,32 @@ if (isset($_POST['konfirmasi_bayar'])) {
         }
     </style>
 </head>
+
 <body>
 
-<div class="invoice-card">
-    <div class="icon">💳</div>
-    <h3 style="margin: 0; color: var(--dark-blue);">Satu Langkah Lagi!</h3>
-    <p style="color: #666; font-size: 0.9rem; margin: 5px 0 20px 0;">Kamu memilih paket <strong><?php echo $nama_paket; ?></strong></p>
-    
-    <div class="harga-tag"><?php echo $harga; ?></div>
+    <div class="invoice-card">
+        <div class="icon">💳</div>
+        <h3 style="margin: 0; color: var(--dark-blue);">Satu Langkah Lagi!</h3>
+        <p style="color: #666; font-size: 0.9rem; margin: 5px 0 20px 0;">Kamu memilih paket <strong><?php echo $nama_paket; ?></strong></p>
 
-    <div class="instruksi-box">
-        <strong style="color: var(--dark-blue); display: block; margin-bottom: 8px;">Silakan transfer ke salah satu akun berikut:</strong>
-        • <strong>DANA / GoPay:</strong> 0812-3456-7890 (a.n MoodMate App)<br>
-        • <strong>Bank BCA:</strong> 8720-1122-33 (a.n PT MoodMate Indonesia)
-        <span style="display: block; margin-top: 10px; font-size: 0.8rem; color: var(--logo-orange); font-weight: bold;">
-            *Catatan: Pastikan nominal transfer pas dan sesuai!
-        </span>
+        <div class="harga-tag"><?php echo $harga; ?></div>
+
+        <div class="instruksi-box">
+            <strong style="color: var(--dark-blue); display: block; margin-bottom: 8px;">Silakan transfer ke salah satu akun berikut:</strong>
+            • <strong>DANA / GoPay:</strong> 0882008904960 (a.n MoodMate App)<br>
+            • <strong>Bank BCA:</strong> 7573026448 (a.n PT MoodMate Indonesia)
+            <span style="display: block; margin-top: 10px; font-size: 0.8rem; color: var(--logo-orange); font-weight: bold;">
+                *Catatan: Pastikan nominal transfer pas dan sesuai!
+            </span>
+        </div>
+
+        <form method="POST">
+            <button type="submit" name="konfirmasi_bayar" class="btn-confirm">Saya Sudah Bayar / Transfer</button>
+        </form>
+
+        <a href="dashboard.php" class="btn-batal">← Batalkan & Kembali</a>
     </div>
 
-    <!-- Form untuk memproses konfirmasi pembayaran -->
-    <form method="POST">
-        <button type="submit" name="konfirmasi_bayar" class="btn-confirm">Saya Sudah Bayar / Transfer</button>
-    </form>
-
-    <a href="dashboard.php" class="btn-batal">← Batalkan & Kembali</a>
-</div>
-
 </body>
+
 </html>

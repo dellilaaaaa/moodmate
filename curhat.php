@@ -27,42 +27,42 @@ $daftar_admin = [
     [
         'id' => 1,
         'nama' => 'Ijah',
-        'avatar' => '🧕', // Jilbab
+        'avatar' => '🧕',
         'keunggulan' => 'Pendengar yang hangat & penuh empati.',
         'shift_teks' => '06:00 - 12:00 WIB',
         'jam_mulai' => 6,
         'jam_selesai' => 12,
-        'no_wa' => '6281234567890' // Ganti nomor WA asli Ijah di sini
+        'no_wa' => '62882008904960' 
     ],
     [
         'id' => 2,
         'nama' => 'Rifaa',
-        'avatar' => '🧕', // Jilbab
+        'avatar' => '🧕', 
         'keunggulan' => 'Solutif, taktis, & fokus jalan keluar.',
         'shift_teks' => '12:00 - 18:00 WIB',
         'jam_mulai' => 12,
         'jam_selesai' => 18,
-        'no_wa' => '6282345678901' // Ganti nomor WA asli Rifaa di sini
+        'no_wa' => '6285811576964'
     ],
     [
         'id' => 3,
         'nama' => 'Kai',
-        'avatar' => '👩‍💼', // Tanpa Jilbab
+        'avatar' => '👩‍💼', 
         'keunggulan' => 'Santai, friendly, seperti sahabat sendiri.',
         'shift_teks' => '18:00 - 00:00 WIB',
         'jam_mulai' => 18,
         'jam_selesai' => 24,
-        'no_wa' => '6283456789012' // Ganti nomor WA asli Kai di sini
+        'no_wa' => '6285810437761'
     ],
     [
         'id' => 4,
         'nama' => 'Dellila',
-        'avatar' => '👩‍🎓', // Tanpa Jilbab
+        'avatar' => '👩‍🎓', 
         'keunggulan' => 'Menemani overthinking & deep talk malam.',
         'shift_teks' => '00:00 - 06:00 WIB',
         'jam_mulai' => 0,
         'jam_selesai' => 6,
-        'no_wa' => '6284567890123' // Ganti nomor WA asli Dellila di sini
+        'no_wa' => '6282127022139'
     ]
 ];
 ?>
@@ -208,8 +208,8 @@ $daftar_admin = [
 
                     <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; font-size: 0.85rem; color: #333; margin-bottom: 15px;">
                         <div style="font-weight: bold; margin-bottom: 5px; color: var(--premium-gold);">PILIHAN TRANSFER BANK / E-WALLET:</div>
-                        • Dana / Gopay / OVO : <strong>0812-3456-7890</strong> (A/N MoodMate Indonesia)<br>
-                        • Bank BCA : <strong>8001-2345-67</strong> (A/N MoodMate Co.)
+                        • Dana / Gopay / OVO : <strong>0882008904960</strong> (A/N MoodMate Indonesia)<br>
+                        • Bank BCA : <strong>7573026448</strong> (A/N MoodMate Co.)
                     </div>
 
                     <p style="font-size: 0.75rem; color: #e74c3c; margin: 0; font-style: italic;">
