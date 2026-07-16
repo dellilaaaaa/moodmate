@@ -141,7 +141,7 @@ if (isset($_POST['konfirmasi_bayar'])) {
         <div class="instruksi-box">
             <strong style="color: var(--dark-blue); display: block; margin-bottom: 8px;">Silakan transfer ke salah satu akun berikut:</strong>
             • <strong>DANA / GoPay:</strong> 0882008904960 (a.n MoodMate App)<br>
-            • <strong>Bank BCA:</strong> 7573026448 (a.n PT MoodMate Indonesia)
+            • <strong>Bank BCA:</strong> 1573026448 (a.n PT MoodMate Indonesia)
             <span style="display: block; margin-top: 10px; font-size: 0.8rem; color: var(--logo-orange); font-weight: bold;">
                 *Catatan: Pastikan nominal transfer pas dan sesuai!
             </span>

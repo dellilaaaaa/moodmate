@@ -25,15 +25,16 @@ $current_user_id = $_SESSION['user_id'] ?? 1;
 // =========================================================================
 $data_emoji_harian = [];
 try {
-    $stmt_mood = $pdo->prepare("SELECT mood, waktu FROM riwayat_mood WHERE user_id = ? ORDER BY waktu ASC");
+    $stmt_mood = $pdo->prepare("SELECT mood, waktu FROM riwayat_mood WHERE user_id = ? ORDER BY waktu ASC LIMIT 7");
     $stmt_mood->execute([$current_user_id]);
     $riwayat_mood_db = $stmt_mood->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($riwayat_mood_db as $row) {
+        $nilai_mood = $row['mood'];
         $data_emoji_harian[] = [
             'tanggal' => date("d M", strtotime($row['waktu'])),
-            'label'   => $row['mood'],
-            'tinggi'  => ($row['mood'] == 'Senang') ? 130 : (($row['mood'] == 'Biasa') ? 90 : (($row['mood'] == 'Lelah') ? 65 : 45))
+            'label'   => $nilai_mood,
+            'tinggi'  => ($nilai_mood == 'Senang') ? 130 : (($nilai_mood == 'Biasa') ? 90 : (($nilai_mood == 'Lelah') ? 65 : 45))
         ];
     }
 } catch (PDOException $e) {
@@ -63,6 +64,30 @@ try {
 } catch (PDOException $e) {
     die("Gagal memuat hasil tes dari database: " . $e->getMessage());
 }
+
+
+// =========================================================================
+// 4. [FIXED] AMBIL DATA HABIT TRACKER DARI TABEL log_habit_harian (TANPA KOLOM STATUS)
+// =========================================================================
+$total_habit_hari_ini = 0;
+$persentase_habit = 0;
+
+try {
+    $hari_ini = date('Y-m-d');
+    
+    // Menghitung berapa banyak entri habit yang dicatat hari ini
+    $stmt_total_habit = $pdo->prepare("SELECT COUNT(*) FROM log_habit_harian WHERE user_id = ? AND DATE(tanggal) = ?");
+    $stmt_total_habit->execute([$current_user_id, $hari_ini]);
+    $total_habit_hari_ini = intval($stmt_total_habit->fetchColumn());
+
+    // Asumsi target harian adalah 4 habit aktivitas
+    $target_harian = 4; 
+    if ($total_habit_hari_ini > 0) {
+        $persentase_habit = min(100, round(($total_habit_hari_ini / $target_harian) * 100));
+    }
+} catch (PDOException $e) {
+    die("Gagal memuat log habit harian: " . $e->getMessage());
+}
 ?>
 
 <!DOCTYPE html>
@@ -76,8 +101,10 @@ try {
             --logo-teal: #6fbab7;
             --dark-bg: #121212;
             --premium-gold: #f39c12;
-            --body-bg: #f3f7f4; 
+            --body-bg: #f8fafc; 
             --dark-blue: #1d3557;
+            --card-shadow: 0 10px 25px rgba(0, 0, 0, 0.03);
+            --habit-green: #2ec4b6;
         }
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
@@ -89,68 +116,89 @@ try {
         }
         
         .sidebar { width: 250px; background-color: var(--dark-bg); color: white; padding: 20px; display: flex; flex-direction: column; }
-        .sidebar-logo { margin-bottom: 30px; text-align: center; font-weight: bold; font-size: 1.5rem; color: #7be0ad; }
-        .nav-menu a { color: #bdc3c7; text-decoration: none; padding: 12px; display: block; border-radius: 8px; margin-bottom: 5px; font-size: 0.95rem; }
-        .nav-menu a.active { background: rgba(255,255,255,0.1); color: #7be0ad; font-weight: bold; }
-        .badge-pro { background: #f39c12; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; float: right; margin-top: 2px; }
+        .sidebar-logo { margin-bottom: 30px; text-align: center; font-weight: bold; font-size: 1.5rem; color: var(--logo-teal); }
+        .nav-menu a { color: #bdc3c7; text-decoration: none; padding: 12px; display: block; border-radius: 8px; margin-bottom: 5px; font-size: 0.95rem; transition: 0.3s; }
+        .nav-menu a:hover, .nav-menu a.active { background: rgba(255,255,255,0.1); color: var(--logo-teal); font-weight: bold; }
+        .badge-pro { background: var(--premium-gold); color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.7rem; font-weight: bold; float: right; margin-top: 2px; }
 
-        .main-content { flex: 1; padding: 30px; overflow-y: auto; color: var(--dark-blue); }
-        .header-title h2 { margin: 0; font-size: 1.5rem; font-weight: 700; color: #0f4c5c; }
-        .header-title p { margin: 5px 0 25px 0; color: #7f8c8d; font-size: 0.9rem; }
+        .main-content { flex: 1; padding: 40px; overflow-y: auto; color: var(--dark-blue); box-sizing: border-box; }
+        .header-title h2 { margin: 0; font-size: 1.7rem; font-weight: 700; color: var(--dark-blue); }
+        .header-title p { margin: 5px 0 30px 0; color: #7f8c8d; font-size: 0.95rem; }
 
-        .dashboard-container { display: grid; grid-template-columns: 2.3fr 1fr; gap: 25px; max-width: 1200px; }
-        .card { background: white; border-radius: 16px; padding: 25px; box-shadow: 0 4px 20px rgba(0,0,0,0.02); margin-bottom: 25px; }
+        .dashboard-container { display: grid; grid-template-columns: 1.8fr 1fr; gap: 30px; max-width: 1200px; }
+        .card { background: white; border-radius: 20px; padding: 25px; box-shadow: var(--card-shadow); margin-bottom: 0; border: 1px solid #f1f5f9; position: relative; }
 
         .chart-container {
-            height: 180px;
+            height: 200px;
             display: flex;
-            justify-content: center;
+            justify-content: space-around;
             align-items: flex-end;
-            gap: 20px;
-            margin-top: 30px;
-            border-bottom: 1px solid #eaedd5;
-            padding-bottom: 10px;
+            gap: 10px;
+            margin-top: 35px;
+            border-bottom: 2px solid #f1f5f9;
+            padding-bottom: 15px;
         }
-        .bar-wrapper { display: flex; flex-direction: column; align-items: center; width: 60px; }
+        .bar-wrapper { display: flex; flex-direction: column; align-items: center; flex: 1; max-width: 60px; }
         .bar-visual { 
-            background: #2ecc71; 
-            width: 35px; 
-            border-radius: 6px 6px 0 0; 
+            background: linear-gradient(180deg, #6fbab7, #3d7e96); 
+            width: 100%; 
+            border-radius: 8px 8px 0 0; 
             position: relative;
-            transition: height 0.4s ease;
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 10px rgba(111, 186, 183, 0.2);
         }
-        .bar-emoji { position: absolute; top: -25px; left: 50%; transform: translateX(-50%); font-size: 1.3rem; }
+        .bar-visual:hover {
+            transform: scale(1.05);
+            filter: brightness(1.1);
+        }
+        .bar-emoji { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); font-size: 1.4rem; }
 
         .mini-chart-box {
-            background: #edf2f4;
-            height: 45px;
-            border-radius: 6px;
-            margin-top: 10px;
+            background: #f1f5f9;
+            height: 40px;
+            border-radius: 12px;
+            margin-top: 15px;
             position: relative;
             overflow: hidden;
         }
         .mini-bar {
-            background: linear-gradient(90deg, #3a86c8, #4ea8de);
+            background: linear-gradient(90deg, #3d7e96, #6fbab7);
             height: 100%;
             display: flex;
             align-items: center;
-            padding-left: 10px;
+            padding-left: 15px;
             color: white;
-            font-size: 0.75rem;
+            font-size: 0.8rem;
             font-weight: bold;
+            border-radius: 12px;
+            transition: width 0.5s ease;
+        }
+        
+        .mini-bar.habit-bar {
+            background: linear-gradient(90deg, #2a9d8f, var(--habit-green));
         }
 
-        .diagnosis-card { border-left: 4px solid #f1c40f; }
-        .quote-box { background: #fffcf4; border: 1px dashed #f39c12; border-radius: 8px; padding: 15px; margin-top: 15px; font-style: italic; font-size: 0.85rem; }
+        .diagnosis-card { border-left: 5px solid var(--logo-teal); display: flex; flex-direction: column; gap: 10px; }
+        .quote-box { background: #fdfaf2; border: 1px solid #fde7c3; border-radius: 14px; padding: 18px; margin-top: 10px; font-style: italic; font-size: 0.9rem; color: #7e5109; line-height: 1.5; }
 
-        .score-card { text-align: center; }
-        .score-card h3 { margin: 0; font-size: 0.75rem; color: #7f8c8d; letter-spacing: 0.5px; }
-        .score-big { font-size: 2.5rem; font-weight: bold; margin: 10px 0 5px 0; }
-        .score-sub { font-size: 1rem; color: #bdc3c7; font-weight: normal; }
-        .status-badge { background: #fff3cd; color: #d68910; padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; display: inline-block; }
+        .score-card { text-align: center; padding: 35px 25px; }
+        .score-card h3 { margin: 0; font-size: 0.8rem; color: #7f8c8d; letter-spacing: 1px; text-transform: uppercase; }
+        .score-big { font-size: 3.2rem; font-weight: 800; margin: 15px 0 8px 0; color: var(--dark-blue); }
+        .score-sub { font-size: 1.2rem; color: #94a3b8; font-weight: 500; }
+        
+        .status-badge { 
+            background: #fef3c7; 
+            color: #d97706; 
+            padding: 6px 20px; 
+            border-radius: 30px; 
+            font-size: 0.85rem; 
+            font-weight: 700; 
+            display: inline-block; 
+        }
 
-        .action-card { background: #11141a; color: white; }
-        .action-card ul { padding-left: 15px; margin: 10px 0 0 0; font-size: 0.8rem; color: #a4b0be; line-height: 1.6; }
+        .action-card { background: var(--dark-bg); color: white; border: none; }
+        .action-card ul { padding-left: 20px; margin: 15px 0 0 0; font-size: 0.85rem; color: #94a3b8; line-height: 1.6; }
+        .action-card li { margin-bottom: 10px; }
     </style>
 </head>
 <body>
@@ -167,19 +215,20 @@ try {
 
     <div class="main-content">
         <div class="header-title">
-            <h2>📊 Analisis Mood Lanjutan</h2>
-            <p>Laporan grafik harian murni dan pemisahan nilai hasil tes emosional.</p>
+            <h2>📊 Analisis Mood & Aktivitas Lanjutan</h2>
+            <p>Laporan grafik statistik emosional terpadu akun premium milikmu.</p>
         </div>
 
         <div class="dashboard-container">
-            <div>
-                <!-- GRAFIK KIRI: DIAMBIL DARI TABEL riwayat_mood -->
+            <!-- PANEL KIBARAN KIRI -->
+            <div style="display: flex; flex-direction: column; gap: 30px;">
+                
                 <div class="card">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <span style="font-size: 1.2rem;">📅</span>
-                        <h3 style="margin: 0; font-size: 1rem;">Tren Grafik Perasaan Harian (Klik Dashboard)</h3>
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span style="font-size: 1.3rem;">📅</span>
+                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700;">Tren Grafik Perasaan Harian</h3>
                     </div>
-                    <p style="color: #7f8c8d; font-size: 0.8rem; margin: 5px 0 0 0;">Fluktuasi emosi harianmu berdasarkan tombol cepat yang kamu tekan setiap pagi di dashboard utama.</p>
+                    <p style="color: #7f8c8d; font-size: 0.85rem; margin: 6px 0 0 0;">Fluktuasi emosimu berdasarkan check-in pagi hari dari dashboard utama.</p>
                     
                     <div class="chart-container">
                         <?php if (!empty($data_emoji_harian)): ?>
@@ -196,37 +245,38 @@ try {
                                             ?>
                                         </span>
                                     </div>
-                                    <span style="font-size: 0.75rem; color: #7f8c8d; margin-top: 8px;"><?php echo $emoji['tanggal']; ?></span>
+                                    <span style="font-size: 0.75rem; color: #7f8c8d; margin-top: 10px; font-weight: 500;"><?php echo $emoji['tanggal']; ?></span>
                                 </div>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <p style="font-size: 0.85rem; color: #94a3b8; align-self: center; margin-bottom: 40px;">Belum ada riwayat check-in emoji dari Dashboard.</p>
+                            <p style="font-size: 0.9rem; color: #94a3b8; align-self: center; margin-bottom: 50px;">Belum ada riwayat check-in emoji dari Dashboard.</p>
                         <?php endif; ?>
                     </div>
 
-                    <p style="font-size: 0.8rem; margin-top: 15px; color: #2c3e50; line-height: 1.4;">
-                        💡 <strong>Insight MoodMate:</strong> Hari ini check-in emoji harianmu tercatat sebagai <strong>Merasa <?php echo htmlspecialchars($mood_terakhir); ?></strong> pada tanggal <strong><?php echo $tanggal_terakhir_mood; ?></strong>.
+                    <p style="font-size: 0.85rem; margin-top: 20px; color: #475569; line-height: 1.5; background: #f8fafc; padding: 12px 16px; border-radius: 12px;">
+                        💡 <strong>Insight Harian:</strong> Terakhir kali kamu memperbarui perasaan sebagai <strong>Merasa <?php echo htmlspecialchars($mood_terakhir); ?></strong> pada tanggal <strong><?php echo $tanggal_terakhir_mood; ?></strong>.
                     </p>
                 </div>
 
                 <div class="card diagnosis-card">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 1.2rem;">💡</span>
-                        <h3 style="margin: 0; font-size: 1rem;">Diagnosis & Motivasi Emosimu Hari Ini</h3>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 1.3rem;">💡</span>
+                        <h3 style="margin: 0; font-size: 1.1rem; font-weight: 700;">Diagnosis & Motivasi Emosimu</h3>
                     </div>
-                    <p style="color: #555; font-size: 0.85rem; line-height: 1.5; margin-top: 10px;">
-                        Grafikmu minggu ini menunjukkan adanya fluktuasi emosi. Terus pantau check-in emosimu setiap hari untuk melacak kesehatan psikologismu.
+                    <p style="color: #475569; font-size: 0.9rem; line-height: 1.6; margin: 5px 0 0 0;">
+                        Grafik mingguan menunjukkan dinamika emosional yang wajar. Melacak fluktuasi ini membantu kamu mendeteksi kelelahan mental (*burnout*) lebih dini.
                     </p>
                     <div class="quote-box">
-                        <strong>Pesan MoodMate:</strong> "Gak apa-apa kok kalau lagi merasa lelah, Buddy. Roda emosi itu berputar. Malam ini, coba kurangi screen time, seduh teh hangat, dan tidur lebih cepat ya. Kamu sudah berusaha keras minggu ini. ☕"
+                        <strong>Pesan Hangat MoodMate:</strong> "Gak apa-apa kok kalau lagi merasa lelah, Buddy. Roda emosi itu berputar. Malam ini, coba kurangi screen time, seduh teh hangat, dan tidur lebih cepat ya. Kamu sudah berusaha keras minggu ini. ☕"
                     </div>
                 </div>
             </div>
 
-            <div>
-                <!-- PANEL KANAN: SEKARANG REALTIME DIAMBIL DARI TABEL hasil_tes -->
+            <!-- PANEL KIBARAN KANAN -->
+            <div style="display: flex; flex-direction: column; gap: 30px;">
+                
                 <div class="card score-card">
-                    <h3>SKOR TES TERAKHIR</h3>
+                    <h3>Skor Tes Terakhir</h3>
                     <div class="score-big"><?php echo $skor_tes_mingguan; ?><span class="score-sub">/100</span></div>
                     <div class="status-badge">
                         <?php 
@@ -238,22 +288,35 @@ try {
                     </div>
                 </div>
 
-                <div class="card" style="padding: 15px 20px;">
-                    <h4 style="margin: 0; font-size: 0.8rem; color: #7f8c8d;">📈 Skor Tes Mingguan (25 Soal)</h4>
+                <div class="card" style="padding: 22px 25px;">
+                    <h4 style="margin: 0; font-size: 0.85rem; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px;">📈 Persentase Beban Stres</h4>
                     <div class="mini-chart-box">
-                        <div class="mini-bar" style="width: <?php echo max(5, $skor_tes_mingguan); ?>%;">
+                        <div class="mini-bar" style="width: <?php echo max(8, $skor_tes_mingguan); ?>%;">
                             <?php echo $skor_tes_mingguan; ?>% (<?php echo $tanggal_terakhir_tes; ?>)
                         </div>
                     </div>
                 </div>
 
+                <!-- CARD TRACKER HABIT HARIAN -->
+                <div class="card" style="padding: 22px 25px;">
+                    <h4 style="margin: 0; font-size: 0.85rem; color: #7f8c8d; text-transform: uppercase; letter-spacing: 0.5px;">✅ Progress Habit Hari Ini</h4>
+                    <div class="mini-chart-box">
+                        <div class="mini-bar habit-bar" style="width: <?php echo max(8, $persentase_habit); ?>%;">
+                            <?php echo $persentase_habit; ?>% Progress
+                        </div>
+                    </div>
+                    <p style="font-size: 0.8rem; color: #7f8c8d; margin: 10px 0 0 0;">
+                        Kamu sudah mencatat <strong><?php echo $total_habit_hari_ini; ?></strong> aktivitas habit pada hari ini.
+                    </p>
+                </div>
+
                 <div class="card action-card">
-                    <div style="display: flex; align-items: center; gap: 8px;">
-                        <span style="font-size: 1.1rem;">🎯</span>
-                        <h4 style="margin: 0; font-size: 0.85rem;">Premium Action Plan</h4>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span style="font-size: 1.2rem;">🎯</span>
+                        <h4 style="margin: 0; font-size: 1rem; font-weight: 700;">Premium Action Plan</h4>
                     </div>
                     <ul>
-                        <li>Lakukan teknik pernapasan kotak (*Box Breathing*) 4x4 setiap jam 2 siang.</li>
+                        <li>Lakukan teknik pernapasan kotak (*Box Breathing*) 4x4 saat merasa cemas.</li>
                         <li>Gunakan fitur <strong>Sesi Curhat</strong> hari ini untuk merilis unek-unek yang menumpuk.</li>
                     </ul>
                 </div>
