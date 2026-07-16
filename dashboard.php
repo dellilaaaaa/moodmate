@@ -97,13 +97,12 @@ if (isset($_GET['status']) && $_GET['status'] == 'reg_sukses') {
     $pesan_sistem = "Username atau email sudah terdaftar di sistem!";
     $tipe_pesan = "error";
 } elseif (isset($_GET['status']) && $_GET['status'] == 'menunggu_konfirmasi') {
-    // [BARU] Menangkap lemparan dari tombol "Saya Sudah Bayar"
     $pesan_sistem = "Pembayaran kamu sedang diverifikasi secara manual oleh Admin. Mohon tunggu maksimal 1x24 jam ya!";
-    $tipe_pesan = "sukses"; // Menggunakan 'sukses' supaya warna background pop-up nya hijau/aman, bukan merah eror
+    $tipe_pesan = "sukses";
 }
 
 // =========================================================================
-// [UPGRADE] --- PROSES BELI PAKET (MENGUPDATE DATABASE SEKALIGUS SESSION) ---
+// [UPGRADE] --- PROSES BELI PAKET ---
 // =========================================================================
 if (isset($_GET['beli_paket'])) {
     if (!$is_logged_in) {
@@ -167,7 +166,59 @@ if ($is_logged_in) {
             $sub_pesan = "Terima kasih sudah check-in mood hari ini. Catatanmu sudah terekam aman di database MySQL.";
         }
     } catch (PDOException $e) {
-        // Diamkan jika database di awal instalasi belum sinkron
+        // Diamkan jika database belum sinkron
+    }
+}
+
+// =========================================================================
+// ✨ [PINDAH KELUAR] 1. LOGIKA INISIALISASI DATA HABIT UNTUK HARI INI
+// =========================================================================
+$current_user_id = $_SESSION['user_id'] ?? 1;
+$hari_ini = date("Y-m-d");
+$habit_hari_ini = ['habit_1' => 0, 'habit_2' => 0, 'habit_3' => 0]; // Nilai fallback aman
+
+try {
+    $stmt_habit = $pdo->prepare("SELECT * FROM log_habit_harian WHERE user_id = ? AND tanggal = ?");
+    $stmt_habit->execute([$current_user_id, $hari_ini]);
+    $data_habit = $stmt_habit->fetch(PDO::FETCH_ASSOC);
+
+    if (!$data_habit) {
+        // Jika hari baru, buat baris baru di DB dengan status 0 semua
+        $stmt_init = $pdo->prepare("INSERT INTO log_habit_harian (user_id, tanggal, habit_1, habit_2, habit_3) VALUES (?, ?, 0, 0, 0)");
+        $stmt_init->execute([$current_user_id, $hari_ini]);
+
+        // Ambil ulang datanya
+        $stmt_habit->execute([$current_user_id, $hari_ini]);
+        $data_habit = $stmt_habit->fetch(PDO::FETCH_ASSOC);
+    }
+
+    if ($data_habit) {
+        $habit_hari_ini = $data_habit;
+    }
+} catch (PDOException $e) {
+    // Diamkan agar tidak merusak halaman utama jika tabel belum di-migrate
+}
+
+// =========================================================================
+// ✨ [PINDAH KELUAR] 2. LOGIKA PROSES KLIK CENTANG HABIT (TOGGLE)
+// =========================================================================
+if (isset($_GET['toggle_habit'])) {
+    $habit_ke = $_GET['toggle_habit']; // nilainya: habit_1, habit_2, atau habit_3
+
+    if (in_array($habit_ke, ['habit_1', 'habit_2', 'habit_3'])) {
+        // Balikkan nilai status centang
+        $status_baru = $habit_hari_ini[$habit_ke] == 1 ? 0 : 1;
+
+        try {
+            $stmt_update = $pdo->prepare("UPDATE log_habit_harian SET $habit_ke = ? WHERE user_id = ? AND tanggal = ?");
+            $stmt_update->execute([$status_baru, $current_user_id, $hari_ini]);
+
+            // Redirect kembali ke dashboard.php tanpa query string habit agar rapi
+            header("Location: dashboard.php");
+            exit();
+        } catch (PDOException $e) {
+            die("Gagal mengupdate habit: " . $e->getMessage());
+        }
     }
 }
 
@@ -186,20 +237,18 @@ if (isset($_GET['action']) && $_GET['action'] == 'input_mood') {
         exit();
     }
 
-    $skor_mood = intval($_GET['score']);
-    $label_mood = htmlspecialchars($_GET['label']);
+    $skor_mood = isset($_GET['score']) ? intval($_GET['score']) : null;
+    $label_mood = isset($_GET['label']) ? htmlspecialchars($_GET['label']) : '';
     $waktu_sekarang = date('Y-m-d H:i:s');
-    $current_user_id = $_SESSION['user_id'] ?? 1; // Menggunakan ID user asli dari session DB
 
     try {
-        // Menyimpan Data Permanen ke Tabel MySQL berdasarkan ID user yang aktif
-        $stmt_insert = $pdo->prepare("INSERT INTO riwayat_mood (user_id, mood, skor, waktu) VALUES (?, ?, ?, ?)");
-        $stmt_insert->execute([$current_user_id, $label_mood, $skor_mood, $waktu_sekarang]);
+        $stmt_insert_mood = $pdo->prepare("INSERT INTO riwayat_mood (user_id, skor, label, waktu) VALUES (?, ?, ?, ?)");
+        $stmt_insert_mood->execute([$current_user_id, $skor_mood, $label_mood, $waktu_sekarang]);
 
         header("Location: " . $_SERVER['PHP_SELF'] . "?status=mood_tercatat");
         exit();
     } catch (PDOException $e) {
-        die("Gagal menyimpan ke database MySQL: " . $e->getMessage());
+        die("Gagal mencatat mood: " . $e->getMessage());
     }
 }
 
@@ -430,7 +479,6 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
             font-size: 0.9rem;
         }
 
-        /* Desain Tombol Emoji Link Baru */
         .mood-options-new {
             display: flex;
             gap: 10px;
@@ -616,327 +664,404 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
 
 <body>
 
-    <body>
-
-        <!-- =========================================================================
+    <!-- =========================================================================
      MODAL POPUP INTEGRASI (SUBSCRIPTION, LOGIN, REGISTER)
      ========================================================================= -->
-        <div class="subscription-overlay" id="popupSubscription">
-            <div class="subscription-card" style="max-width: 450px; width: 90%; max-height: 90vh; overflow-y: auto;">
-                <span class="close-popup" onclick="tutupPopup()">&times;</span>
+    <div class="subscription-overlay" id="popupSubscription">
+        <div class="subscription-card" style="max-width: 450px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <span class="close-popup" onclick="tutupPopup()">&times;</span>
 
-                <?php if (!empty($pesan_sistem)): ?>
-                    <div style="padding:10px; margin-bottom:15px; border-radius:8px; font-size:0.85rem; text-align:center; background:<?= $tipe_pesan == 'sukses' ? '#e2fcd4' : '#fce2e2' ?>; color:<?= $tipe_pesan == 'sukses' ? '#2b660a' : '#660a0a' ?>; font-weight: bold;">
-                        <?= $pesan_sistem ?>
-                    </div>
-                <?php endif; ?>
-
-                <!-- 1. KONTEN SUBSCRIPTION (PILIHAN PAKET PREMIUM) -->
-                <div id="contentSubscription" style="<?php echo (isset($_GET['action']) && $_GET['action'] == 'req_login') ? 'display:none;' : 'display:block;'; ?>">
-                    <div class="sub-header">
-                        <h2>Subscription</h2>
-                        <p>Compare Plans</p>
-                    </div>
-
-                    <div class="plans-container">
-                        <!-- PAKET WEEKLY -->
-                        <div class="plan-box" style="border-color: #38ef7d;">
-                            <span class="recommended-badge">RECOMMENDED</span>
-                            <div class="plan-info">
-                                <h4>Super Weekly</h4>
-                                <ul>
-                                    <li>Unlimited journal energy</li>
-                                    <li>No ads & Premium badges</li>
-                                </ul>
-                            </div>
-                            <div class="plan-price">
-                                <span class="price">Rp5.000</span>
-                                <span class="durasi">/minggu</span>
-                                <!-- HREF Diubah ke pembayaran.php -->
-                                <a href="pembayaran.php?paket=weekly" class="btn-upgrade" style="padding: 5px 10px; font-size: 0.75rem; display: inline-block; margin-top: 5px; background: #38ef7d; color: white;">Try</a>
-                            </div>
-                        </div>
-
-                        <!-- PAKET MONTHLY -->
-                        <div class="plan-box">
-                            <div class="plan-info">
-                                <h4>Super Monthly</h4>
-                                <ul>
-                                    <li>Unlimited journal energy</li>
-                                    <li>Advanced mood analytics</li>
-                                </ul>
-                            </div>
-                            <div class="plan-price">
-                                <span style="font-size: 0.75rem; color: #e74c3c; text-decoration: line-through; display: block;">Rp20.000</span>
-                                <span class="price" style="color: #27ae60;">Rp15.000</span>
-                                <span class="durasi">/bulan</span>
-                                <!-- HREF Diubah ke pembayaran.php -->
-                                <a href="pembayaran.php?paket=monthly" class="btn-upgrade" style="padding: 5px 10px; font-size: 0.75rem; display: inline-block; margin-top: 5px; background: var(--logo-blue); color: white;">Try</a>
-                            </div>
-                        </div>
-
-                        <!-- PAKET 3-MONTH -->
-                        <div class="plan-box">
-                            <div class="plan-info">
-                                <h4>Super 3-Month</h4>
-                                <ul>
-                                    <li>Full access for 90 days</li>
-                                    <li>Best value investment</li>
-                                </ul>
-                            </div>
-                            <div class="plan-price">
-                                <span style="font-size: 0.75rem; color: #e74c3c; text-decoration: line-through; display: block;">Rp60.000</span>
-                                <span class="price" style="color: #27ae60;">Rp35.000</span>
-                                <span class="durasi">/3 bulan</span>
-                                <!-- HREF Diubah ke pembayaran.php -->
-                                <a href="pembayaran.php?paket=threemonth" class="btn-upgrade" style="padding: 5px 10px; font-size: 0.75rem; display: inline-block; margin-top: 5px; background: var(--dark-blue); color: white;">Try</a>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="switch-login-btn" onclick="tampilFormLoginOnly()" style="margin-top: 15px; cursor: pointer; color: var(--logo-blue); font-weight: bold;">Sudah punya akun? Masuk di sini</div>
-                </div>
-
-                <!-- 2. KONTEN LOGIN ONLY -->
-                <div id="contentLoginOnly" style="<?php echo (isset($_GET['action']) && $_GET['action'] == 'req_login') ? 'display:block;' : 'display:none;'; ?>">
-                    <h3 style="margin-top: 0; color: var(--dark-blue); text-align: left; font-size: 1.4rem;">Masuk Ke Akun</h3>
-
-                    <?php if (isset($_GET['action']) && $_GET['action'] == 'req_login'): ?>
-                        <p style="font-size: 0.85rem; color:#e74c3c; font-weight:bold; background:#fdeaea; padding:8px; border-radius:8px; text-align: left; margin-bottom: 15px;">⚠️ Kamu harus membuat akun / login dahulu sebelum mengaktifkan Premium!</p>
-                    <?php else: ?>
-                        <p style="font-size: 0.85rem; color:#666; margin-bottom: 20px; text-align: left;">Masukkan data akun lengkapmu di bawah ini.</p>
-                    <?php endif; ?>
-
-                    <form method="POST" action="dashboard.php" style="text-align: left;">
-                        <div style="margin-bottom: 12px;">
-                            <label style="font-size: 0.8rem; font-weight: bold; color: #333; display: block;">Username</label>
-                            <input type="text" name="username" style="width:100%; padding: 10px; border:1px solid #ddd; border-radius:8px; box-sizing: border-box; margin-top:4px; font-size: 0.9rem;" required>
-                        </div>
-                        <div style="margin-bottom: 20px;">
-                            <label style="font-size: 0.8rem; font-weight: bold; color: #333; display: block;">Password</label>
-                            <input type="password" name="password" style="width:100%; padding: 10px; border:1px solid #ddd; border-radius:8px; box-sizing: border-box; margin-top:4px; font-size: 0.9rem;" required>
-                        </div>
-                        <button type="submit" name="proses_login" class="btn-save" style="width: 100%; margin: 0; background: var(--logo-blue); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">Masuk</button>
-                    </form>
-
-                    <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: 0.85rem;">
-                        <span onclick="tampilFormRegister()" style="color: var(--logo-blue); cursor: pointer; font-weight: bold; text-decoration: underline;">Belum punya akun? Daftar</span>
-                        <span onclick="tampilSubscriptionPlans()" style="color: #666; cursor: pointer; font-weight: 500;">← Lihat Paket</span>
-                    </div>
-                </div>
-
-                <!-- 3. KONTEN REGISTER -->
-                <div id="contentRegister" style="display: none;">
-                    <h3 style="margin-top: 0; color: var(--dark-blue); text-align: left; font-size: 1.4rem;">Daftar Akun Baru</h3>
-                    <p style="font-size: 0.85rem; color:#666; margin-bottom: 20px; text-align: left;">Mulai catat kesehatan mentalmu secara rapi dan permanen gratis.</p>
-
-                    <form method="POST" action="dashboard.php" style="text-align: left;">
-                        <div style="margin-bottom: 12px;">
-                            <label style="font-size: 0.8rem; font-weight: bold; color: #333; display: block;">Buat Username</label>
-                            <input type="text" name="username" style="width:100%; padding: 10px; border:1px solid #ddd; border-radius:8px; box-sizing: border-box; margin-top:4px; font-size: 0.9rem;" required>
-                        </div>
-                        <div style="margin-bottom: 12px;">
-                            <label style="font-size: 0.8rem; font-weight: bold; color: #333; display: block;">Alamat Email</label>
-                            <input type="email" name="email" style="width:100%; padding: 10px; border:1px solid #ddd; border-radius:8px; box-sizing: border-box; margin-top:4px; font-size: 0.9rem;" required>
-                        </div>
-                        <div style="margin-bottom: 20px;">
-                            <label style="font-size: 0.8rem; font-weight: bold; color: #333; display: block;">Buat Password</label>
-                            <input type="password" name="password" style="width:100%; padding: 10px; border:1px solid #ddd; border-radius:8px; box-sizing: border-box; margin-top:4px; font-size: 0.9rem;" required>
-                        </div>
-                        <button type="submit" name="proses_register" class="btn-save" style="width: 100%; margin: 0; background: #f39c12; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">Daftar Sekarang</button>
-                    </form>
-
-                    <div style="margin-top: 20px; font-size: 0.85rem; text-align: center;">
-                        <span onclick="tampilFormLoginOnly()" style="color: var(--logo-blue); cursor: pointer; font-weight: bold; text-decoration: underline;">Sudah punya akun? Masuk di sini</span>
-                    </div>
-                </div>
-
-            </div>
-        </div>
-
-        <div class="sidebar">
-            <div class="sidebar-logo">MoodMate</div>
-            <nav class="nav-menu">
-                <a href="dashboard.php" class="active">Dashboard</a>
-                <a href="tracking.php">Tes Emosional</a>
-
-                <?php
-                if ($is_logged_in && $is_premium) {
-                    echo '<a href="analisis.php">Analisis Mood <span style="background:gold; color:black; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">PRO</span></a>';
-                } else {
-                    echo '<a href="#" style="opacity: 0.6;" onclick="bukaPopupPremium()">Analisis Mood 🔒</a>';
-                }
-                ?>
-
-                <?php
-                if ($is_logged_in && $is_premium) {
-                    echo '<a href="curhat.php">Sesi Curhat <span style="background:gold; color:black; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">PRO</span></a>';
-                } else {
-                    echo '<a href="#" style="opacity: 0.6;" onclick="bukaPopupPremium()">Sesi Curhat 🔒</a>';
-                }
-                ?>
-            </nav>
-        </div>
-
-        <div class="main-content">
-            <header>
-                <h2>Dashboard</h2>
-                <div style="display: flex; align-items: center;">
-                    <?php if ($is_logged_in): ?>
-                        Halo, <strong><?php echo $_SESSION['username']; ?>!</strong>
-                        <?php if ($is_premium): ?>
-                            <span class="status-badge badge-premium">⭐ PREMIUM</span>
-                        <?php else: ?>
-                            <span class="status-badge badge-free">FREE MEMBER</span>
-                        <?php endif; ?>
-                        <a href="?action=logout" class="btn-save" style="background:#e74c3c; padding: 6px 12px; font-size:0.8rem; margin-left:15px; margin-top:0;">Logout</a>
-                    <?php else: ?>
-                        <!-- SINKRONISASI TOMBOL KANAN ATAS -->
-                        <button onclick="bukaPopupAuthBiasa()" style="background: white; color: var(--dark-blue); border: 1px solid #ccc; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer;">Login / Upgrade</button>
-                    <?php endif; ?>
-                </div>
-            </header>
-
-            <?php if (!$is_premium): ?>
-                <!-- SINKRONISASI BANNER PREMIUM -->
-                <div class="premium-banner" onclick="bukaPopupPremium()" style="cursor: pointer;">
-                    <div>
-                        <h4 style="margin: 0 0 5px 0;">MoodMate Premium Aktifkan Sekarang! 🚀</h4>
-                        <p style="margin: 0; font-size: 0.85rem;">Mulai dari Rp5.000/minggu. Klik di sini untuk unlock seluruh fitur cerdas dashboard.</p>
-                    </div>
-                    <button class="btn-upgrade">Daftar PRO</button>
-                </div>
-            <?php endif; ?>
-
-            <a href="tracking.php" class="free-test-banner">
-                <div>
-                    <h4 style="margin: 0 0 5px 0;">Cek Kesehatan Mentalmu! 🧠 ✨</h4>
-                    <p style="margin: 0; font-size: 0.85rem;">Ikuti <strong>Tes Emosional Gratis</strong> selama 1 menit untuk mengetahui tingkat stres dan kecemasanmu saat ini.</p>
-                </div>
-                <button class="btn-test">Mulai Tes (Gratis)</button>
-            </a>
-
-            <div class="welcome-banner">
-                <h3><?php echo $pesan_header; ?></h3>
-                <p><?php echo $sub_pesan; ?></p>
-            </div>
-
-            <div class="dashboard-grid">
-                <div class="left-col">
-
-                    <div class="card">
-                        <h4>Bagaimana perasaanmu saat ini?</h4>
-                        <div class="mood-options-new">
-                            <a href="?action=input_mood&score=20&label=Senang" class="mood-link <?php echo $sudah_isi ? 'disabled' : ''; ?>">
-                                😄<br><span style="font-size: 11px; display:block; margin-top:5px;">Senang</span>
-                            </a>
-                            <a href="?action=input_mood&score=40&label=Biasa" class="mood-link <?php echo $sudah_isi ? 'disabled' : ''; ?>">
-                                😐<br><span style="font-size: 11px; display:block; margin-top:5px;">Biasa</span>
-                            </a>
-                            <a href="?action=input_mood&score=70&label=Lelah" class="mood-link <?php echo $sudah_isi ? 'disabled' : ''; ?>">
-                                😩<br><span style="font-size: 11px; display:block; margin-top:5px;">Lelah</span>
-                            </a>
-                            <a href="?action=input_mood&score=90&label=Sedih" class="mood-link <?php echo $sudah_isi ? 'disabled' : ''; ?>">
-                                😔<br><span style="font-size: 11px; display:block; margin-top:5px;">Sedih</span>
-                            </a>
-                        </div>
-                    </div>
-
-                    <div class="card" onclick="<?php echo $fitur_terkunci ? 'bukaPopupPremium()' : ''; ?>" style="<?php echo $fitur_terkunci ? 'cursor:pointer;' : ''; ?>">
-                        <?php if ($fitur_terkunci): ?> <div class="lock-overlay"><span>🔒 Buka Paket Premium Super</span></div> <?php endif; ?>
-                        <div class="<?php echo $fitur_terkunci ? 'locked-content' : ''; ?>">
-                            <form method="POST">
-                                <h4>Journal Harian</h4>
-                                <textarea name="jurnal_teks" rows="4" placeholder="Tuliskan ceritamu hari ini..." required></textarea>
-                                <button type="submit" name="simpan_mood" class="btn-save">Simpan Jurnal</button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="right-col">
-                    <div class="card">
-                        <h4>Reminder</h4>
-                        <div class="rem-item" style="background: var(--logo-orange); padding: 10px; border-radius: 8px;">
-                            <strong>Minum Air Putih!</strong><br>Jangan lupa hidrasi tubuhmu hari ini.
-                        </div>
-                    </div>
-
-                    <div class="card" style="background: linear-gradient(135deg, #6fbab7, #3d7e96); color: white; margin-top: 15px;">
-                        <h4 style="margin: 0 0 8px 0; font-size: 0.9rem; color: var(--logo-orange);">💡 Quotes Hari Ini</h4>
-                        <p style="font-style: italic; font-size: 0.8rem; line-height: 1.4; margin: 0;">
-                            "Kamu tidak harus mengendalikan seluruh pikiranmu. Kamu hanya harus berhenti membiarkan pikiranmu mengendalikanmu."
-                        </p>
-                        <small style="display: block; text-align: right; margin-top: 5px; font-size: 0.7 her; opacity: 0.8;">— MoodMate</small>
-                    </div>
-
-                    <div class="card" onclick="<?php echo $fitur_terkunci ? 'bukaPopupPremium()' : ''; ?>" style="margin-top: 15px; <?php echo $fitur_terkunci ? 'cursor:pointer;' : ''; ?>">
-                        <?php if ($fitur_terkunci): ?>
-                            <div class="lock-overlay"><span>🔒 Buka Fitur Habit Tracker (Premium)</span></div>
-                        <?php endif; ?>
-
-                        <div class="<?php echo $fitur_terkunci ? 'locked-content' : ''; ?>">
-                            <h4 style="margin: 0 0 10px 0; font-size: 0.95rem;">🎯 Habit Tracker Harian</h4>
-                            <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.8 gubernatorial; color: #555;">
-                                <label style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" disabled> Tidur Cukup 7-8 Jam</label>
-                                <label style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" disabled> Meditasi / Tenangkan Pikiran</label>
-                                <label style="display: flex; align-items: center; gap: 8px;"><input type="checkbox" disabled> Olahraga Ringan 15 Menit</label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- =========================================================================
-     SATU-SATUNYA SCRIPT SINKRONISASI PENGENDALI MODAL (YANG LAMA SUDAH DIHAPUS)
-     ========================================================================= -->
-        <script>
-            function bukaPopupPremium() {
-                document.getElementById('popupSubscription').style.display = 'flex';
-                tampilSubscriptionPlans();
-            }
-
-            function bukaPopupAuthBiasa() {
-                document.getElementById('popupSubscription').style.display = 'flex';
-                tampilFormLoginOnly();
-            }
-
-            function tutupPopup() {
-                if (window.location.search.includes('req_login')) {
-                    window.location.href = window.location.pathname;
-                } else {
-                    document.getElementById('popupSubscription').style.display = 'none';
-                }
-            }
-
-            function tampilSubscriptionPlans() {
-                document.getElementById('contentSubscription').style.display = 'block';
-                document.getElementById('contentLoginOnly').style.display = 'none';
-                document.getElementById('contentRegister').style.display = 'none';
-            }
-
-            function tampilFormLoginOnly() {
-                document.getElementById('contentSubscription').style.display = 'none';
-                document.getElementById('contentLoginOnly').style.display = 'block';
-                document.getElementById('contentRegister').style.display = 'none';
-            }
-
-            function tampilFormRegister() {
-                document.getElementById('contentSubscription').style.display = 'none';
-                document.getElementById('contentLoginOnly').style.display = 'none';
-                document.getElementById('contentRegister').style.display = 'block';
-            }
-
-            // Menangani kondisi otomatisasi pop-up dari PHP redirect
             <?php if (!empty($pesan_sistem)): ?>
-                document.getElementById('popupSubscription').style.display = 'flex';
-                <?php if ((isset($_GET['pesan']) && $_GET['pesan'] == 'reg_gagal') || (isset($_GET['status']) && $_GET['status'] == 'reg_sukses')): ?>
-                    tampilFormRegister();
-                <?php else: ?>
-                    tampilFormLoginOnly();
-                <?php endif; ?>
+                <div style="padding:10px; margin-bottom:15px; border-radius:8px; font-size:0.85rem; text-align:center; background:<?= $tipe_pesan == 'sukses' ? '#e2fcd4' : '#fce2e2' ?>; color:<?= $tipe_pesan == 'sukses' ? '#2b660a' : '#660a0a' ?>; font-weight: bold;">
+                    <?= $pesan_sistem ?>
+                </div>
             <?php endif; ?>
-        </script>
-    </body>
+
+            <!-- 1. KONTEN SUBSCRIPTION -->
+            <div id="contentSubscription" style="<?php echo (isset($_GET['action']) && $_GET['action'] == 'req_login') ? 'display:none;' : 'display:block;'; ?>">
+                <div class="sub-header">
+                    <h2>Subscription</h2>
+                    <p>Compare Plans</p>
+                </div>
+
+                <div class="plans-container">
+                    <div class="plan-box" style="border-color: #38ef7d;">
+                        <span class="recommended-badge">RECOMMENDED</span>
+                        <div class="plan-info">
+                            <h4>Super Weekly</h4>
+                            <ul>
+                                <li>Unlimited journal energy</li>
+                                <li>No ads & Premium badges</li>
+                            </ul>
+                        </div>
+                        <div class="plan-price">
+                            <span class="price">Rp5.000</span>
+                            <span class="durasi">/minggu</span>
+                            <a href="pembayaran.php?paket=weekly" class="btn-upgrade" style="padding: 5px 10px; font-size: 0.75rem; display: inline-block; margin-top: 5px; background: #38ef7d; color: white;">Try</a>
+                        </div>
+                    </div>
+
+                    <div class="plan-box">
+                        <div class="plan-info">
+                            <h4>Super Monthly</h4>
+                            <ul>
+                                <li>Unlimited journal energy</li>
+                                <li>Advanced mood analytics</li>
+                            </ul>
+                        </div>
+                        <div class="plan-price">
+                            <span style="font-size: 0.75rem; color: #e74c3c; text-decoration: line-through; display: block;">Rp20.000</span>
+                            <span class="price" style="color: #27ae60;">Rp15.000</span>
+                            <span class="durasi">/bulan</span>
+                            <a href="pembayaran.php?paket=monthly" class="btn-upgrade" style="padding: 5px 10px; font-size: 0.75rem; display: inline-block; margin-top: 5px; background: var(--logo-blue); color: white;">Try</a>
+                        </div>
+                    </div>
+
+                    <div class="plan-box">
+                        <div class="plan-info">
+                            <h4>Super 3-Month</h4>
+                            <ul>
+                                <li>Full access for 90 days</li>
+                                <li>Best value investment</li>
+                            </ul>
+                        </div>
+                        <div class="plan-price">
+                            <span style="font-size: 0.75rem; color: #e74c3c; text-decoration: line-through; display: block;">Rp60.000</span>
+                            <span class="price" style="color: #27ae60;">Rp35.000</span>
+                            <span class="durasi">/3 bulan</span>
+                            <a href="pembayaran.php?paket=threemonth" class="btn-upgrade" style="padding: 5px 10px; font-size: 0.75rem; display: inline-block; margin-top: 5px; background: var(--dark-blue); color: white;">Try</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="switch-login-btn" onclick="tampilFormLoginOnly()" style="margin-top: 15px; cursor: pointer; color: var(--logo-blue); font-weight: bold;">Sudah punya akun? Masuk di sini</div>
+            </div>
+
+            <!-- 2. KONTEN LOGIN ONLY -->
+            <div id="contentLoginOnly" style="<?php echo (isset($_GET['action']) && $_GET['action'] == 'req_login') ? 'display:block;' : 'display:none;'; ?>">
+                <h3 style="margin-top: 0; color: var(--dark-blue); text-align: left; font-size: 1.4rem;">Masuk Ke Akun</h3>
+
+                <?php if (isset($_GET['action']) && $_GET['action'] == 'req_login'): ?>
+                    <p style="font-size: 0.85rem; color:#e74c3c; font-weight:bold; background:#fdeaea; padding:8px; border-radius:8px; text-align: left; margin-bottom: 15px;">⚠️ Kamu harus membuat akun / login dahulu sebelum mengaktifkan Premium!</p>
+                <?php else: ?>
+                    <p style="font-size: 0.85rem; color:#666; margin-bottom: 20px; text-align: left;">Masukkan data akun lengkapmu di bawah ini.</p>
+                <?php endif; ?>
+
+                <form method="POST" action="dashboard.php" style="text-align: left;">
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-size: 0.8rem; font-weight: bold; color: #333; display: block;">Username</label>
+                        <input type="text" name="username" style="width:100%; padding: 10px; border:1px solid #ddd; border-radius:8px; box-sizing: border-box; margin-top:4px; font-size: 0.9rem;" required>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <label style="font-size: 0.8rem; font-weight: bold; color: #333; display: block;">Password</label>
+                        <input type="password" name="password" style="width:100%; padding: 10px; border:1px solid #ddd; border-radius:8px; box-sizing: border-box; margin-top:4px; font-size: 0.9rem;" required>
+                    </div>
+                    <button type="submit" name="proses_login" class="btn-save" style="width: 100%; margin: 0; background: var(--logo-blue); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">Masuk</button>
+                </form>
+
+                <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: 0.85rem;">
+                    <span onclick="tampilFormRegister()" style="color: var(--logo-blue); cursor: pointer; font-weight: bold; text-decoration: underline;">Belum punya akun? Daftar</span>
+                    <span onclick="tampilSubscriptionPlans()" style="color: #666; cursor: pointer; font-weight: 500;">← Lihat Paket</span>
+                </div>
+            </div>
+
+            <!-- 3. KONTEN REGISTER -->
+            <div id="contentRegister" style="display: none;">
+                <h3 style="margin-top: 0; color: var(--dark-blue); text-align: left; font-size: 1.4rem;">Daftar Akun Baru</h3>
+                <p style="font-size: 0.85rem; color:#666; margin-bottom: 20px; text-align: left;">Mulai catat kesehatan mentalmu secara rapi dan permanen gratis.</p>
+
+                <form method="POST" action="dashboard.php" style="text-align: left;">
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-size: 0.8rem; font-weight: bold; color: #333; display: block;">Buat Username</label>
+                        <input type="text" name="username" style="width:100%; padding: 10px; border:1px solid #ddd; border-radius:8px; box-sizing: border-box; margin-top:4px; font-size: 0.9rem;" required>
+                    </div>
+                    <div style="margin-bottom: 12px;">
+                        <label style="font-size: 0.8rem; font-weight: bold; color: #333; display: block;">Alamat Email</label>
+                        <input type="email" name="email" style="width:100%; padding: 10px; border:1px solid #ddd; border-radius:8px; box-sizing: border-box; margin-top:4px; font-size: 0.9rem;" required>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <label style="font-size: 0.8rem; font-weight: bold; color: #333; display: block;">Buat Password</label>
+                        <input type="password" name="password" style="width:100%; padding: 10px; border:1px solid #ddd; border-radius:8px; box-sizing: border-box; margin-top:4px; font-size: 0.9rem;" required>
+                    </div>
+                    <button type="submit" name="proses_register" class="btn-save" style="width: 100%; margin: 0; background: #f39c12; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">Daftar Sekarang</button>
+                </form>
+
+                <div style="margin-top: 20px; font-size: 0.85rem; text-align: center;">
+                    <span onclick="tampilFormLoginOnly()" style="color: var(--logo-blue); cursor: pointer; font-weight: bold; text-decoration: underline;">Sudah punya akun? Masuk di sini</span>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <div class="sidebar-logo">MoodMate</div>
+        <nav class="nav-menu">
+            <a href="dashboard.php" class="active">Dashboard</a>
+            <a href="tracking.php">Tes Emosional</a>
+
+            <?php
+            if ($is_logged_in && $is_premium) {
+                echo '<a href="analisis.php">Analisis Mood <span style="background:gold; color:black; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">PRO</span></a>';
+            } else {
+                echo '<a href="#" style="opacity: 0.6;" onclick="bukaPopupPremium()">Analisis Mood 🔒</a>';
+            }
+            ?>
+
+            <?php
+            if ($is_logged_in && $is_premium) {
+                echo '<a href="curhat.php">Sesi Curhat <span style="background:gold; color:black; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">PRO</span></a>';
+            } else {
+                echo '<a href="#" style="opacity: 0.6;" onclick="bukaPopupPremium()">Sesi Curhat 🔒</a>';
+            }
+            ?>
+        </nav>
+    </div>
+
+    <div class="main-content">
+        <header>
+            <h2>Dashboard</h2>
+            <div style="display: flex; align-items: center;">
+                <?php if ($is_logged_in): ?>
+                    Halo, <strong><?php echo $_SESSION['username']; ?>!</strong>
+                    <?php if ($is_premium): ?>
+                        <span class="status-badge badge-premium">⭐ PREMIUM</span>
+                    <?php else: ?>
+                        <span class="status-badge badge-free">FREE MEMBER</span>
+                    <?php endif; ?>
+                    <a href="?action=logout" class="btn-save" style="background:#e74c3c; padding: 6px 12px; font-size:0.8rem; margin-left:15px; margin-top:0;">Logout</a>
+                <?php else: ?>
+                    <button onclick="bukaPopupAuthBiasa()" style="background: white; color: var(--dark-blue); border: 1px solid #ccc; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer;">Login / Upgrade</button>
+                <?php endif; ?>
+            </div>
+        </header>
+
+        <?php if (!$is_premium): ?>
+            <div class="premium-banner" onclick="bukaPopupPremium()" style="cursor: pointer;">
+                <div>
+                    <h4 style="margin: 0 0 5px 0;">MoodMate Premium Aktifkan Sekarang! 🚀</h4>
+                    <p style="margin: 0; font-size: 0.85rem;">Mulai dari Rp5.000/minggu. Klik di sini untuk unlock seluruh fitur cerdas dashboard.</p>
+                </div>
+                <button class="btn-upgrade">Daftar PRO</button>
+            </div>
+        <?php endif; ?>
+
+        <a href="tracking.php" class="free-test-banner">
+            <div>
+                <h4 style="margin: 0 0 5px 0;">Cek Kesehatan Mentalmu! 🧠 ✨</h4>
+                <p style="margin: 0; font-size: 0.85rem;">Ikuti <strong>Tes Emosional Gratis</strong> selama 1 menit untuk mengetahui tingkat stres dan kecemasanmu saat ini.</p>
+            </div>
+            <button class="btn-test">Mulai Tes (Gratis)</button>
+        </a>
+
+        <div class="welcome-banner">
+            <h3><?php echo $pesan_header; ?></h3>
+            <p><?php echo $sub_pesan; ?></p>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="left-col">
+
+                <div class="card">
+                    <h4>Bagaimana perasaanmu saat ini?</h4>
+                    <div class="mood-options-new">
+                        <a href="?action=input_mood&score=20&label=Senang" class="mood-link <?php echo $sudah_isi ? 'disabled' : ''; ?>">
+                            😄<br><span style="font-size: 11px; display:block; margin-top:5px;">Senang</span>
+                        </a>
+                        <a href="?action=input_mood&score=40&label=Biasa" class="mood-link <?php echo $sudah_isi ? 'disabled' : ''; ?>">
+                            😐<br><span style="font-size: 11px; display:block; margin-top:5px;">Biasa</span>
+                        </a>
+                        <a href="?action=input_mood&score=70&label=Lelah" class="mood-link <?php echo $sudah_isi ? 'disabled' : ''; ?>">
+                            😩<br><span style="font-size: 11px; display:block; margin-top:5px;">Lelah</span>
+                        </a>
+                        <a href="?action=input_mood&score=90&label=Sedih" class="mood-link <?php echo $sudah_isi ? 'disabled' : ''; ?>">
+                            😔<br><span style="font-size: 11px; display:block; margin-top:5px;">Sedih</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="card" onclick="<?php echo $fitur_terkunci ? 'bukaPopupPremium()' : ''; ?>" style="<?php echo $fitur_terkunci ? 'cursor:pointer;' : ''; ?>">
+                    <?php if ($fitur_terkunci): ?> <div class="lock-overlay"><span>🔒 Buka Paket Premium Super</span></div> <?php endif; ?>
+                    <div class="<?php echo $fitur_terkunci ? 'locked-content' : ''; ?>">
+                        <form method="POST">
+                            <h4>Journal Harian</h4>
+                            <textarea name="jurnal_teks" rows="4" placeholder="Tuliskan ceritamu hari ini..." required></textarea>
+                            <button type="submit" name="simpan_mood" class="btn-save">Simpan Jurnal</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="right-col">
+                <div class="card">
+                    <h4>Reminder</h4>
+                    <div class="rem-item" style="background: var(--logo-orange); padding: 10px; border-radius: 8px;">
+                        <strong>Minum Air Putih!</strong><br>Jangan lupa hidrasi tubuhmu hari ini.
+                    </div>
+                </div>
+
+                <div class="card" style="background: linear-gradient(135deg, #6fbab7, #3d7e96); color: white; margin-top: 15px;">
+                    <h4 style="margin: 0 0 8px 0; font-size: 0.9rem; color: var(--logo-orange);">💡 Quotes Hari Ini</h4>
+                    <p style="font-style: italic; font-size: 0.8rem; line-height: 1.4; margin: 0;">
+                        "Kamu tidak harus mengendalikan seluruh pikiranmu. Kamu hanya harus berhenti membiarkan pikiranmu mengendalikanmu."
+                    </p>
+                    <small style="display: block; text-align: right; margin-top: 5px; font-size: 0.7rem; opacity: 0.8;">— MoodMate</small>
+                </div>
+
+                <!-- CARD 3: HABIT TRACKER FIXED -->
+                <div class="card" onclick="<?php echo $fitur_terkunci ? 'bukaPopupPremium()' : ''; ?>" style="margin-top: 15px; <?php echo $fitur_terkunci ? 'cursor:pointer;' : ''; ?>; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.04); padding: 25px;">
+
+                    <?php if ($fitur_terkunci): ?>
+                        <div class="lock-overlay" style="border-radius: 20px;"><span>🔒 Buka Fitur Habit Tracker (Premium)</span></div>
+                    <?php endif; ?>
+
+                    <div class="<?php echo $fitur_terkunci ? 'locked-content' : ''; ?>">
+                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                            <span style="font-size: 1.4rem;">🎯</span>
+                            <h4 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: #1d3557;">Habit Tracker Hari Ini</h4>
+                        </div>
+                        <p style="font-size: 0.85rem; color: #7f8c8d; margin: 0 0 20px 0;">Klik untuk mencentang kebiasaan sehatmu</p>
+
+                        <div style="display: flex; flex-direction: column; gap: 12px; font-size: 0.9rem;">
+
+                            <!-- Gaya CSS internal khusus item agar kode tetap clean -->
+                            <style>
+                                .habit-item {
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: space-between;
+                                    padding: 14px 18px;
+                                    border: 1px solid #eef2f3;
+                                    border-radius: 14px;
+                                    transition: all 0.25s ease;
+                                    gap: 15px;
+                                }
+
+                                .habit-item:hover {
+                                    transform: translateY(-2px);
+                                    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+                                }
+
+                                .habit-text {
+                                    font-weight: 500;
+                                    color: #2c3e50;
+                                    line-height: 1.4;
+                                }
+
+                                .habit-status {
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 6px;
+                                    font-weight: 700;
+                                    white-space: nowrap;
+                                    /* Mencegah teks 'Selesai' turun ke bawah */
+                                    font-size: 0.85rem;
+                                }
+                            </style>
+
+                            <!-- Habit 1 -->
+                            <?php if ($fitur_terkunci): ?>
+                                <div class="habit-item" style="background: #fff;">
+                                    <span class="habit-text">💧 Minum Air Putih 2L</span>
+                                    <span class="habit-status" style="color: #bdc3c7;">⬜ Belum</span>
+                                </div>
+                            <?php else: ?>
+                                <a href="?toggle_habit=habit_1" style="text-decoration: none; display: block;">
+                                    <div class="habit-item" style="background: <?= $habit_hari_ini['habit_1'] == 1 ? '#e8f8f0' : '#fff' ?>; border-color: <?= $habit_hari_ini['habit_1'] == 1 ? '#2ecc71' : '#eef2f3' ?>;">
+                                        <span class="habit-text">💧 Minum Air Putih 2L</span>
+                                        <span class="habit-status" style="color: <?= $habit_hari_ini['habit_1'] == 1 ? '#2ecc71' : '#95a5a6' ?>;">
+                                            <?= $habit_hari_ini['habit_1'] == 1 ? '✅ Selesai' : '⬜ Belum' ?>
+                                        </span>
+                                    </div>
+                                </a>
+                            <?php endif; ?>
+
+                            <!-- Habit 2 -->
+                            <?php if ($fitur_terkunci): ?>
+                                <div class="habit-item" style="background: #fff;">
+                                    <span class="habit-text">🧘 Meditasi / Journaling 10 Menit</span>
+                                    <span class="habit-status" style="color: #bdc3c7;">⬜ Belum</span>
+                                </div>
+                            <?php else: ?>
+                                <a href="?toggle_habit=habit_2" style="text-decoration: none; display: block;">
+                                    <div class="habit-item" style="background: <?= $habit_hari_ini['habit_2'] == 1 ? '#e8f8f0' : '#fff' ?>; border-color: <?= $habit_hari_ini['habit_2'] == 1 ? '#2ecc71' : '#eef2f3' ?>;">
+                                        <span class="habit-text">🧘 Meditasi / Journaling 10 Menit</span>
+                                        <span class="habit-status" style="color: <?= $habit_hari_ini['habit_2'] == 1 ? '#2ecc71' : '#95a5a6' ?>;">
+                                            <?= $habit_hari_ini['habit_2'] == 1 ? '✅ Selesai' : '⬜ Belum' ?>
+                                        </span>
+                                    </div>
+                                </a>
+                            <?php endif; ?>
+
+                            <!-- Habit 3 -->
+                            <?php if ($fitur_terkunci): ?>
+                                <div class="habit-item" style="background: #fff;">
+                                    <span class="habit-text">🏃 Berolahraga / Fisik</span>
+                                    <span class="habit-status" style="color: #bdc3c7;">⬜ Belum</span>
+                                </div>
+                            <?php else: ?>
+                                <a href="?toggle_habit=habit_3" style="text-decoration: none; display: block;">
+                                    <div class="habit-item" style="background: <?= $habit_hari_ini['habit_3'] == 1 ? '#e8f8f0' : '#fff' ?>; border-color: <?= $habit_hari_ini['habit_3'] == 1 ? '#2ecc71' : '#eef2f3' ?>;">
+                                        <span class="habit-text">🏃 Berolahraga / Fisik</span>
+                                        <span class="habit-status" style="color: <?= $habit_hari_ini['habit_3'] == 1 ? '#2ecc71' : '#95a5a6' ?>;">
+                                            <?= $habit_hari_ini['habit_3'] == 1 ? '✅ Selesai' : '⬜ Belum' ?>
+                                        </span>
+                                    </div>
+                                </a>
+                            <?php endif; ?>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function bukaPopupPremium() {
+            document.getElementById('popupSubscription').style.display = 'flex';
+            tampilSubscriptionPlans();
+        }
+
+        function bukaPopupAuthBiasa() {
+            document.getElementById('popupSubscription').style.display = 'flex';
+            tampilFormLoginOnly();
+        }
+
+        function tutupPopup() {
+            if (window.location.search.includes('req_login')) {
+                window.location.href = window.location.pathname;
+            } else {
+                document.getElementById('popupSubscription').style.display = 'none';
+            }
+        }
+
+        function tampilSubscriptionPlans() {
+            document.getElementById('contentSubscription').style.display = 'block';
+            document.getElementById('contentLoginOnly').style.display = 'none';
+            document.getElementById('contentRegister').style.display = 'none';
+        }
+
+        function tampilFormLoginOnly() {
+            document.getElementById('contentSubscription').style.display = 'none';
+            document.getElementById('contentLoginOnly').style.display = 'block';
+            document.getElementById('contentRegister').style.display = 'none';
+        }
+
+        function tampilFormRegister() {
+            document.getElementById('contentSubscription').style.display = 'none';
+            document.getElementById('contentLoginOnly').style.display = 'none';
+            document.getElementById('contentRegister').style.display = 'block';
+        }
+
+        <?php if (!empty($pesan_sistem)): ?>
+            document.getElementById('popupSubscription').style.display = 'flex';
+            <?php if ((isset($_GET['pesan']) && $_GET['pesan'] == 'reg_gagal') || (isset($_GET['status']) && $_GET['status'] == 'reg_sukses')): ?>
+                tampilFormRegister();
+            <?php else: ?>
+                tampilFormLoginOnly();
+            <?php endif; ?>
+        <?php endif; ?>
+    </script>
+</body>
 
 </html>
