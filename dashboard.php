@@ -282,6 +282,8 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MoodMate - Dashboard</title>
+    <!-- FullCalendar CSS CDN -->
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.css' rel='stylesheet' />
     <style>
         :root {
             --logo-teal: #6fbab7;
@@ -532,7 +534,6 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
             text-decoration: none;
         }
 
-        /* MODIFIKASI: Tombol Login Premium Baru & Interaktif */
         .btn-login-premium {
             width: 100%; 
             margin: 0; 
@@ -687,6 +688,24 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
             cursor: pointer;
             text-decoration: underline;
         }
+
+        /* Styling Kalender */
+        .fc {
+            font-family: 'Segoe UI', sans-serif;
+            background: white;
+            padding: 15px;
+            border-radius: 12px;
+        }
+        .fc-header-toolbar {
+            margin-bottom: 10px !important;
+            font-size: 0.85rem;
+        }
+        .fc-event {
+            cursor: pointer;
+            padding: 2px 5px;
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
     </style>
 </head>
 
@@ -833,7 +852,7 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
             if ($is_logged_in && $is_premium) {
                 echo '<a href="curhat.php">Sesi Curhat <span style="background:gold; color:black; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">PRO</span></a>';
             } else {
-                echo '<a href="#" style="opacity: 0.6;" onclick="bPopupPremium()">Sesi Curhat 🔒</a>';
+                echo '<a href="#" style="opacity: 0.6;" onclick="bukaPopupPremium()">Sesi Curhat 🔒</a>';
             }
             ?>
         </nav>
@@ -911,6 +930,25 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
                         </form>
                     </div>
                 </div>
+
+                <!-- KARTU BARU: MOOD CALENDAR (Sudah ditaruh di luar bungkus struktur journal yang terkunci) -->
+                <div class="card" style="margin-top: 20px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+                        <span style="font-size: 1.3rem;">📅</span>
+                        <h4 style="margin: 0; font-size: 1.1rem; color: var(--dark-blue);">Kalender Mood Kamu</h4>
+                    </div>
+                    
+                    <?php if (!$is_logged_in): ?>
+                        <div style="text-align: center; padding: 30px 10px; color: #7f8c8d;">
+                            <p style="margin: 0 0 10px 0; font-size: 0.9rem;">Yuk login dulu untuk melihat kalender track mood pribadimu!</p>
+                            <button onclick="bukaPopupAuthBiasa()" style="background: var(--logo-blue); color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: bold; cursor: pointer;">Login Sekarang</button>
+                        </div>
+                    <?php else: ?>
+                        <!-- Tempat kalender akan dirender oleh JS -->
+                        <div id='calendar'></div>
+                    <?php endif; ?>
+                </div>
+
             </div>
 
             <div class="right-col">
@@ -1043,6 +1081,10 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
             tampilFormLoginOnly();
         }
 
+        function bPopupPremium() {
+            bukaPopupPremium();
+        }
+
         function tutupPopup() {
             if (window.location.search.includes('req_login') || window.location.search.includes('status=reg_sukses')) {
                 window.location.href = window.location.pathname;
@@ -1069,11 +1111,10 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
             document.getElementById('contentRegister').style.display = 'block';
         }
 
-        /* MODIFIKASI: Logika otomatis membuka form Login jika statusnya reg_sukses */
         <?php if (!empty($pesan_sistem)): ?>
             document.getElementById('popupSubscription').style.display = 'flex';
             <?php if (isset($_GET['status']) && $_GET['status'] == 'reg_sukses'): ?>
-                tampilFormLoginOnly(); // Langsung pindah ke form Login
+                tampilFormLoginOnly();
             <?php elseif (isset($_GET['pesan']) && $_GET['pesan'] == 'reg_gagal'): ?>
                 tampilFormRegister();
             <?php else: ?>
@@ -1081,6 +1122,28 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
             <?php endif; ?>
         <?php endif; ?>
     </script>
-</body>
 
+    <!-- FullCalendar JavaScript CDN -->
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.8/index.global.min.js'></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var calendarEl = document.getElementById('calendar');
+            
+            if (calendarEl) {
+                var calendar = new FullCalendar.Calendar(calendarEl, {
+                    initialView: 'dayGridMonth',
+                    locale: 'id',
+                    headerToolbar: {
+                        left: 'title',
+                        right: 'prev,next today'
+                    },
+                    events: 'get_mood_events.php',
+                    height: 'auto',
+                    fixedWeekCount: false
+                });
+                calendar.render();
+            }
+        });
+    </script>
+</body>
 </html>
