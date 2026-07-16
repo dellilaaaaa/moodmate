@@ -88,7 +88,7 @@ if (isset($_POST['proses_login'])) {
 // Menangkap Status & Pesan Dari URL Untuk Pengendali Pop-Up Modal
 // =========================================================================
 if (isset($_GET['status']) && $_GET['status'] == 'reg_sukses') {
-    $pesan_sistem = "Pendaftaran berhasil! Silakan login menggunakan akun barumu.";
+    $pesan_sistem = "🎉 Pendaftaran berhasil! Silakan login menggunakan akun barumu.";
     $tipe_pesan = "sukses";
 } elseif (isset($_GET['pesan']) && $_GET['pesan'] == 'login_gagal') {
     $pesan_sistem = "Username atau password salah! Coba periksa kembali.";
@@ -136,7 +136,7 @@ $is_logged_in = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true
 $is_premium = isset($_SESSION['is_premium']) && $_SESSION['is_premium'] === true;
 
 // =========================================================================
-// [FIXED LOGIC] Jurnal Premium Hanya Terkunci Jika User Sudah Login tapi Bukan Pro
+// [FIXED] Jurnal Premium Hanya Terkunci Jika User Sudah Login tapi Bukan Pro
 // =========================================================================
 $fitur_terkunci = false;
 if ($is_logged_in) {
@@ -171,7 +171,7 @@ if ($is_logged_in) {
 }
 
 // =========================================================================
-// ✨ [PINDAH KELUAR] 1. LOGIKA INISIALISASI DATA HABIT UNTUK HARI INI
+// ✨ 1. LOGIKA INISIALISASI DATA HABIT UNTUK HARI INI
 // =========================================================================
 $current_user_id = $_SESSION['user_id'] ?? 1;
 $hari_ini = date("Y-m-d");
@@ -200,7 +200,7 @@ try {
 }
 
 // =========================================================================
-// ✨ [PINDAH KELUAR] 2. LOGIKA PROSES KLIK CENTANG HABIT (TOGGLE)
+// ✨ 2. LOGIKA PROSES KLIK CENTANG HABIT (TOGGLE)
 // =========================================================================
 if (isset($_GET['toggle_habit'])) {
     $habit_ke = $_GET['toggle_habit']; // nilainya: habit_1, habit_2, atau habit_3
@@ -223,7 +223,7 @@ if (isset($_GET['toggle_habit'])) {
 }
 
 // =========================================================================
-// [FIXED] PROSES TANGKAP KLIK EMOJI HARIAN (TERIKAT USER ID DATABASE)
+// PROSES TANGKAP KLIK EMOJI HARIAN (TERIKAT USER ID DATABASE)
 // =========================================================================
 if (isset($_GET['action']) && $_GET['action'] == 'input_mood') {
 
@@ -532,6 +532,34 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
             text-decoration: none;
         }
 
+        /* MODIFIKASI: Tombol Login Premium Baru & Interaktif */
+        .btn-login-premium {
+            width: 100%; 
+            margin: 0; 
+            background: linear-gradient(135deg, #3d7e96, #1d3557); 
+            color: white; 
+            border: none; 
+            padding: 14px; 
+            border-radius: 10px; 
+            font-weight: 700; 
+            cursor: pointer; 
+            font-size: 1rem; 
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 15px rgba(29, 53, 87, 0.25);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .btn-login-premium:hover {
+            background: linear-gradient(135deg, #4b94b0, #25446f);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(29, 53, 87, 0.4);
+        }
+
+        .btn-login-premium:active {
+            transform: translateY(1px);
+            box-shadow: 0 2px 10px rgba(29, 53, 87, 0.2);
+        }
+
         .subscription-overlay {
             display: <?php echo (isset($_GET['action']) && $_GET['action'] == 'req_login') ? 'flex' : 'none'; ?>;
             position: fixed;
@@ -664,9 +692,6 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
 
 <body>
 
-    <!-- =========================================================================
-     MODAL POPUP INTEGRASI (SUBSCRIPTION, LOGIN, REGISTER)
-     ========================================================================= -->
     <div class="subscription-overlay" id="popupSubscription">
         <div class="subscription-card" style="max-width: 450px; width: 90%; max-height: 90vh; overflow-y: auto;">
             <span class="close-popup" onclick="tutupPopup()">&times;</span>
@@ -677,7 +702,6 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
                 </div>
             <?php endif; ?>
 
-            <!-- 1. KONTEN SUBSCRIPTION -->
             <div id="contentSubscription" style="<?php echo (isset($_GET['action']) && $_GET['action'] == 'req_login') ? 'display:none;' : 'display:block;'; ?>">
                 <div class="sub-header">
                     <h2>Subscription</h2>
@@ -736,7 +760,6 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
                 <div class="switch-login-btn" onclick="tampilFormLoginOnly()" style="margin-top: 15px; cursor: pointer; color: var(--logo-blue); font-weight: bold;">Sudah punya akun? Masuk di sini</div>
             </div>
 
-            <!-- 2. KONTEN LOGIN ONLY -->
             <div id="contentLoginOnly" style="<?php echo (isset($_GET['action']) && $_GET['action'] == 'req_login') ? 'display:block;' : 'display:none;'; ?>">
                 <h3 style="margin-top: 0; color: var(--dark-blue); text-align: left; font-size: 1.4rem;">Masuk Ke Akun</h3>
 
@@ -755,7 +778,7 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
                         <label style="font-size: 0.8rem; font-weight: bold; color: #333; display: block;">Password</label>
                         <input type="password" name="password" style="width:100%; padding: 10px; border:1px solid #ddd; border-radius:8px; box-sizing: border-box; margin-top:4px; font-size: 0.9rem;" required>
                     </div>
-                    <button type="submit" name="proses_login" class="btn-save" style="width: 100%; margin: 0; background: var(--logo-blue); color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 0.95rem; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">Masuk</button>
+                    <button type="submit" name="proses_login" class="btn-login-premium">Masuk Sekarang</button>
                 </form>
 
                 <div style="display: flex; justify-content: space-between; margin-top: 20px; font-size: 0.85rem;">
@@ -764,7 +787,6 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
                 </div>
             </div>
 
-            <!-- 3. KONTEN REGISTER -->
             <div id="contentRegister" style="display: none;">
                 <h3 style="margin-top: 0; color: var(--dark-blue); text-align: left; font-size: 1.4rem;">Daftar Akun Baru</h3>
                 <p style="font-size: 0.85rem; color:#666; margin-bottom: 20px; text-align: left;">Mulai catat kesehatan mentalmu secara rapi dan permanen gratis.</p>
@@ -811,7 +833,7 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
             if ($is_logged_in && $is_premium) {
                 echo '<a href="curhat.php">Sesi Curhat <span style="background:gold; color:black; padding:2px 6px; border-radius:4px; font-size:10px; font-weight:bold;">PRO</span></a>';
             } else {
-                echo '<a href="#" style="opacity: 0.6;" onclick="bukaPopupPremium()">Sesi Curhat 🔒</a>';
+                echo '<a href="#" style="opacity: 0.6;" onclick="bPopupPremium()">Sesi Curhat 🔒</a>';
             }
             ?>
         </nav>
@@ -907,7 +929,6 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
                     <small style="display: block; text-align: right; margin-top: 5px; font-size: 0.7rem; opacity: 0.8;">— MoodMate</small>
                 </div>
 
-                <!-- CARD 3: HABIT TRACKER FIXED -->
                 <div class="card" onclick="<?php echo $fitur_terkunci ? 'bukaPopupPremium()' : ''; ?>" style="margin-top: 15px; <?php echo $fitur_terkunci ? 'cursor:pointer;' : ''; ?>; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.04); padding: 25px;">
 
                     <?php if ($fitur_terkunci): ?>
@@ -923,7 +944,6 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
 
                         <div style="display: flex; flex-direction: column; gap: 12px; font-size: 0.9rem;">
 
-                            <!-- Gaya CSS internal khusus item agar kode tetap clean -->
                             <style>
                                 .habit-item {
                                     display: flex;
@@ -953,12 +973,10 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
                                     gap: 6px;
                                     font-weight: 700;
                                     white-space: nowrap;
-                                    /* Mencegah teks 'Selesai' turun ke bawah */
                                     font-size: 0.85rem;
                                 }
                             </style>
 
-                            <!-- Habit 1 -->
                             <?php if ($fitur_terkunci): ?>
                                 <div class="habit-item" style="background: #fff;">
                                     <span class="habit-text">💧 Minum Air Putih 2L</span>
@@ -975,7 +993,6 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
                                 </a>
                             <?php endif; ?>
 
-                            <!-- Habit 2 -->
                             <?php if ($fitur_terkunci): ?>
                                 <div class="habit-item" style="background: #fff;">
                                     <span class="habit-text">🧘 Meditasi / Journaling 10 Menit</span>
@@ -992,7 +1009,6 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
                                 </a>
                             <?php endif; ?>
 
-                            <!-- Habit 3 -->
                             <?php if ($fitur_terkunci): ?>
                                 <div class="habit-item" style="background: #fff;">
                                     <span class="habit-text">🏃 Berolahraga / Fisik</span>
@@ -1028,7 +1044,7 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
         }
 
         function tutupPopup() {
-            if (window.location.search.includes('req_login')) {
+            if (window.location.search.includes('req_login') || window.location.search.includes('status=reg_sukses')) {
                 window.location.href = window.location.pathname;
             } else {
                 document.getElementById('popupSubscription').style.display = 'none';
@@ -1053,9 +1069,12 @@ if (!$fitur_terkunci && isset($_POST['simpan_mood'])) {
             document.getElementById('contentRegister').style.display = 'block';
         }
 
+        /* MODIFIKASI: Logika otomatis membuka form Login jika statusnya reg_sukses */
         <?php if (!empty($pesan_sistem)): ?>
             document.getElementById('popupSubscription').style.display = 'flex';
-            <?php if ((isset($_GET['pesan']) && $_GET['pesan'] == 'reg_gagal') || (isset($_GET['status']) && $_GET['status'] == 'reg_sukses')): ?>
+            <?php if (isset($_GET['status']) && $_GET['status'] == 'reg_sukses'): ?>
+                tampilFormLoginOnly(); // Langsung pindah ke form Login
+            <?php elseif (isset($_GET['pesan']) && $_GET['pesan'] == 'reg_gagal'): ?>
                 tampilFormRegister();
             <?php else: ?>
                 tampilFormLoginOnly();
